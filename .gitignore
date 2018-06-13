@@ -1,0 +1,8 @@
+*.data
+*.xlsx
+*.xlsx#
+*.png
+*.out
+*.final
+*.processed
+*.zip
