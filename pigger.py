@@ -30,6 +30,7 @@ DIGITS_LOOKUP = {
 video   = cv2.VideoCapture(filename)
 
 index   = 1
+nindex  = 0
 
 count = 1
 while count < index:
@@ -41,6 +42,9 @@ succ, img = video.read()
 kmeans = KMeans(n_clusters = 1)
 
 readouts = []
+
+digitHull = None
+digitHullSkewed = None
 
 while succ:
 
@@ -133,6 +137,8 @@ while succ:
     height, width = img.shape[:2]
     numbers = img[0:height, int(x+radius*2):width]
 
+    numbers = cv2.copyMakeBorder(numbers, 0, 0, 3, 0, cv2.BORDER_CONSTANT, (255, 255, 255))
+
     height, width = numbers.shape[:2]
     numberZer = img[0:height, int(x-width/3):int(x)]
     numberOne = numbers[0:height, 0:int(width/3)]
@@ -150,6 +156,8 @@ while succ:
             digits = []
             break
 
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 6))
+        distinguished = cv2.morphologyEx(greyber, cv2.MORPH_OPEN, kernel)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         greyber = cv2.erode(greyber, kernel, iterations = 1)
 
@@ -157,34 +165,73 @@ while succ:
         greyber = cv2.dilate(greyber, kernel, iterations = 3)
         greyber = cv2.erode(greyber, kernel, iterations = 1)
 
-        ret, contours, hierarchy = cv2.findContours(greyber.copy(), cv2.RETR_EXTERNAL,
-                cv2.CHAIN_APPROX_SIMPLE)
+        if digitHull == None:
+            #this relies on the assumption that the first digit processed will be a 0
+            ret, contours, hierarchy = cv2.findContours(greyber.copy(), cv2.RETR_EXTERNAL,
+                    cv2.CHAIN_APPROX_SIMPLE)
 #        copy = greyber.copy()
 #        copy = cv2.cvtColor(copy, cv2.COLOR_GRAY2BGR)
-        borderHull = cv2.convexHull(contours[0])
-        hullBounds = cv2.boundingRect(borderHull)
+            borderHull = cv2.convexHull(contours[0])
+            digitHull = borderHull
+
+            #peri = cv2.arcLength(digitHull, True)
+            #approx = cv2.approxPolyDP(digitHull, 0.05 * peri, True)
+
+
+            #copy = greyber.copy()
+            #copy = cv2.cvtColor(copy, cv2.COLOR_GRAY2BGR)
+
+            #cv2.drawContours(copy, [approx], -1, (0, 255, 0), 1)
+            #cv2.imshow("copy", copy)
+
+            #greyber = four_point_transform(greyber, approx.reshape(4, 2))
+            #distinguished = four_point_transform(distinguished, approx.reshape(4, 2))
+
+            ret, contours, hierarchy = cv2.findContours(greyber.copy(), cv2.RETR_EXTERNAL,
+                    cv2.CHAIN_APPROX_SIMPLE)
+            borderHull = cv2.convexHull(contours[0])
+            digitHullSkewed = borderHull
+
+            hullBounds = cv2.boundingRect(digitHullSkewed)
+
+        else:
+            #peri = cv2.arcLength(digitHull, True)
+            #approx = cv2.approxPolyDP(digitHull, 0.05 * peri, True)
+
+            #greyber = four_point_transform(greyber, approx.reshape(4, 2))
+            #distinguished = four_point_transform(distinguished, approx.reshape(4, 2))
+            hullBounds = cv2.boundingRect(digitHullSkewed)
+
 #
 #        cv2.drawContours(copy, [borderHull], -1, (0, 255, 0), 2)
 #
-        greyber = greyber[
+        greyber = distinguished[
                 hullBounds[1]:hullBounds[1]+hullBounds[3],
-                hullBounds[0]+hullBounds[2]-int(hullBounds[3]/greyber.shape[0] * greyber.shape[1]):hullBounds[0]+hullBounds[2]+1]
+                hullBounds[0]:hullBounds[0]+hullBounds[2]]
+        greyber = cv2.dilate(greyber, kernel, iterations = 1)
+        #cv2.imshow("greyber", greyber)
+#        greyber = distinguished
 
         #(x, y, w, h) = cv2.boundingRect(contours[0])
-        (x, y, w, h) = (0, 0, greyber.shape[1], greyber.shape[0])
-        dw = int(w*0.3)
-        dh = int(h*0.2)
-        xd = 4
+
+        # margins (left, right, top, bottom)
+        lm = 3
+        rm = 0
+        tm = 2
+        bm = 4
+        (x, y, w, h) = (lm, tm, greyber.shape[1]-lm-rm, greyber.shape[0]-tm-bm)
+        dw = int(w*0.35)
+        dh = int(h*0.15)
 
         # define the set of 7 segments
         segments = [
-                ((x+xd//2, y+dh), (x+dw+xd, y+h // 2)), # top-left
-                ((x, y+h // 2), (x+w-2*dw, y+h-dh)), # bottom-left
-                ((x+dw+xd//2, y), (x+w-dw+xd//2, y+dh)),      # top
+                ((x, y+dh), (x+dw, y+h // 2)), # top-left
+                ((x, y+h // 2), (x+dw, y+h-dh)), # bottom-left
+                ((x+dw, y), (x+w-dw, y+dh)),      # top
                 ((x+dw, (y+(h-dh) // 2)) , (x+w-dw, y+((h+dh) // 2))), # center
                 ((x+dw, y+h - dh), (x+w-dw, y+h)),   # bottom
                 ((x+w-dw, y+dh), (x+w, y+h // 2)),     # top-right
-                ((x+w-dw-xd//2, y+h // 2), (x+w-xd//2, y+h-dh))     # bottom-right
+                ((x+w-dw, y+h // 2), (x+w, y+h-dh))     # bottom-right
         ]
         on = [0] * len(segments)
         try:
@@ -202,14 +249,18 @@ while succ:
             area  = (bottom - top) * (right - left) + 1
 
             color = (0, 0, 255)
-            if total / area > 0.5:
+            #print(total/area)
+            if total / area > -0.001607*area + 0.5:
                 on[i] = 1
                 color = (0, 255, 0)
             else:
                 pass
-            cv2.rectangle(copy, segment[0], segment[1], color, 2)
-            #cv2.imshow("sector", copy)
-            #cv2.waitKey()
+            cv2.rectangle(copy, segment[0], segment[1], color, 1)
+            if index > 1240:
+                print()
+                print(total, area, total/area)
+                cv2.imshow("sector", copy)
+                cv2.waitKey()
 
         try:
             digits.append(str(DIGITS_LOOKUP[tuple(on)]))
@@ -228,6 +279,11 @@ while succ:
     cv2.putText(img, str(value), (0, 24), 0, 1, (255, 255, 255))
     cv2.imwrite("output/screen%d.png" % index, img)
 
+    if value == "null":
+        cv2.imshow(str(index) + " - null", img)
+        cv2.moveWindow(str(index) + " - null", (nindex * 314) % 1884, int(nindex * 314 / 1884) * 105)
+        nindex += 1
+
     #print(" ", index, "-", int(value*1000) if len(digits) > 0 else "null")
     readouts.append(value)
 
@@ -238,10 +294,13 @@ while succ:
 else:
     print("done                  ")
 
+wasNull = False
+
 outputFile = open("output/" + filename.split("/")[-1] + ".out", "w")
 outString = ""
 for i, val in enumerate(readouts):
     if val == "null":
+        wasNull = True
         if i > 0 and readouts[i-1] != "null":
             prior = readouts[i-1]
         else:
@@ -264,3 +323,6 @@ for i, val in enumerate(readouts):
 
 outputFile.write(outString)
 outputFile.close()
+
+if wasNull:
+    cv2.waitKey()

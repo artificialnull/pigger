@@ -28,6 +28,7 @@ for i, cnt in enumerate(contours):
             roismall = roismall.reshape((1,100))
             roismall = np.float32(roismall)
             retval, results, neigh_resp, dists = model.findNearest(roismall, k = 1)
+            print(dists)
             string = str(int((results[0][0])))
             cv2.putText(out,string,(x,y+h),0,1,(0,255,0))
 
