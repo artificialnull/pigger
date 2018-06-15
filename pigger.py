@@ -132,7 +132,16 @@ while succ:
 
     for contour in contours:
         if cv2.contourArea(contour) > 5 and cv2.minEnclosingCircle(contour)[1] < 5:
-            break
+            circleWidth, circleHeight = cv2.boundingRect(contour)[2:]
+            if circleWidth/circleHeight > 0.6 and circleWidth/circleHeight < 1.4:
+                #print()
+                #print(circleWidth, circleHeight)
+                break
+    else:
+        print("  %d - dot not found" % index)
+        readouts.append("null")
+        continue
+
     (x, y), radius = cv2.minEnclosingCircle(contour)
     height, width = img.shape[:2]
     numbers = img[0:height, int(x+radius*2):width]
@@ -145,6 +154,12 @@ while succ:
     numberTwo = numbers[0:height, int(width/3):int(2*width/3)]
     numberTre = numbers[0:height, int(2*width/3):width]
     cx = x
+
+    drawn = img.copy()
+    cv2.drawContours(drawn, [contour], -1, (0, 255, 0), 1)
+    cbx, cby, cbw, cbh = cv2.boundingRect(contour)
+    cv2.rectangle(drawn, (cbx, cby), (cbx+cbw, cby+cbh), (0, 0, 255), 1)
+    cv2.imwrite("output/pic%d.png" % index, drawn)
 
     digits = []
     for ind, number in enumerate([numberZer, numberOne, numberTwo, numberTre]):
@@ -208,15 +223,36 @@ while succ:
         greyber = distinguished[
                 hullBounds[1]:hullBounds[1]+hullBounds[3],
                 hullBounds[0]:hullBounds[0]+hullBounds[2]]
-        greyber = cv2.dilate(greyber, kernel, iterations = 1)
+        try:
+            greyber = cv2.dilate(greyber, kernel, iterations = 1)
+        except:
+            #cv2.imshow("num" + str(index), number)
+            #cv2.waitKey()
+            print(greyber.shape)
+            raise SystemExit
+        borderAmt = (hullBounds[3]-hullBounds[2])//2
+        greyber = cv2.copyMakeBorder(greyber, 0, 0, borderAmt, borderAmt, cv2.BORDER_CONSTANT, (0, 0, 0))
+
+        height, width = greyber.shape[:2]
+
+        #print(hullBounds)
+
+        pts1 = np.float32([[5, 5], [width-5, 5], [5, height-5]])
+        pts2 = np.float32([[2, 5], [width-5-3, 5], [5, height-5]])
+
+        afftr = cv2.getAffineTransform(pts1, pts2)
+        greyber = cv2.warpAffine(greyber, afftr, greyber.shape[:2])
+        greyber = greyber[0:height, 
+                borderAmt:width-borderAmt
+        ]
         #cv2.imshow("greyber", greyber)
 #        greyber = distinguished
 
         #(x, y, w, h) = cv2.boundingRect(contours[0])
 
         # margins (left, right, top, bottom)
-        lm = 3
-        rm = 0
+        lm = 0
+        rm = 2
         tm = 2
         bm = 4
         (x, y, w, h) = (lm, tm, greyber.shape[1]-lm-rm, greyber.shape[0]-tm-bm)
@@ -256,7 +292,7 @@ while succ:
             else:
                 pass
             cv2.rectangle(copy, segment[0], segment[1], color, 1)
-            if index > 1240:
+            if index > 9990:
                 print()
                 print(total, area, total/area)
                 cv2.imshow("sector", copy)
