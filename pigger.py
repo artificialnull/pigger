@@ -1,12 +1,9 @@
 from imutils.perspective import four_point_transform
-from imutils import contours as contourlib
-from math import sqrt
 import imutils
 import cv2
 import numpy as np
 import argparse
 from sklearn.cluster import KMeans
-import matplotlib.pyplot as plt
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-f", required=True, help="video path")
@@ -140,6 +137,7 @@ while succ:
     else:
         print("  %d - dot not found" % index)
         readouts.append("null")
+        index += 1
         continue
 
     (x, y), radius = cv2.minEnclosingCircle(contour)
@@ -184,50 +182,24 @@ while succ:
             #this relies on the assumption that the first digit processed will be a 0
             ret, contours, hierarchy = cv2.findContours(greyber.copy(), cv2.RETR_EXTERNAL,
                     cv2.CHAIN_APPROX_SIMPLE)
-#        copy = greyber.copy()
-#        copy = cv2.cvtColor(copy, cv2.COLOR_GRAY2BGR)
             borderHull = cv2.convexHull(contours[0])
             digitHull = borderHull
-
-            #peri = cv2.arcLength(digitHull, True)
-            #approx = cv2.approxPolyDP(digitHull, 0.05 * peri, True)
-
-
-            #copy = greyber.copy()
-            #copy = cv2.cvtColor(copy, cv2.COLOR_GRAY2BGR)
-
-            #cv2.drawContours(copy, [approx], -1, (0, 255, 0), 1)
-            #cv2.imshow("copy", copy)
-
-            #greyber = four_point_transform(greyber, approx.reshape(4, 2))
-            #distinguished = four_point_transform(distinguished, approx.reshape(4, 2))
 
             ret, contours, hierarchy = cv2.findContours(greyber.copy(), cv2.RETR_EXTERNAL,
                     cv2.CHAIN_APPROX_SIMPLE)
             borderHull = cv2.convexHull(contours[0])
             digitHullSkewed = borderHull
 
-            hullBounds = cv2.boundingRect(digitHullSkewed)
+        hullBounds = cv2.boundingRect(digitHullSkewed)
 
-        else:
-            #peri = cv2.arcLength(digitHull, True)
-            #approx = cv2.approxPolyDP(digitHull, 0.05 * peri, True)
-
-            #greyber = four_point_transform(greyber, approx.reshape(4, 2))
-            #distinguished = four_point_transform(distinguished, approx.reshape(4, 2))
-            hullBounds = cv2.boundingRect(digitHullSkewed)
-
-#
-#        cv2.drawContours(copy, [borderHull], -1, (0, 255, 0), 2)
-#
         greyber = distinguished[
                 hullBounds[1]:hullBounds[1]+hullBounds[3],
                 hullBounds[0]:hullBounds[0]+hullBounds[2]]
         try:
             greyber = cv2.dilate(greyber, kernel, iterations = 1)
         except:
-            #cv2.imshow("num" + str(index), number)
-            #cv2.waitKey()
+            cv2.imshow("num" + str(index), number)
+            cv2.waitKey()
             print(greyber.shape)
             raise SystemExit
         borderAmt = (hullBounds[3]-hullBounds[2])//2
@@ -235,7 +207,6 @@ while succ:
 
         height, width = greyber.shape[:2]
 
-        #print(hullBounds)
 
         pts1 = np.float32([[5, 5], [width-5, 5], [5, height-5]])
         pts2 = np.float32([[2, 5], [width-5-3, 5], [5, height-5]])
@@ -246,9 +217,7 @@ while succ:
                 borderAmt:width-borderAmt
         ]
         #cv2.imshow("greyber", greyber)
-#        greyber = distinguished
 
-        #(x, y, w, h) = cv2.boundingRect(contours[0])
 
         # margins (left, right, top, bottom)
         lm = 0
@@ -329,6 +298,8 @@ while succ:
 
 else:
     print("done                  ")
+index -= 1
+print(index, len(readouts))
 
 wasNull = False
 
